@@ -5,9 +5,8 @@ canvas.height = innerHeight;
 canvas.width = innerWidth;
 
 
-//let p = [{x: 1, y: 2}, {x: 3, y: 5}, {x: 8, y: 2}, {x: 12, y: 6}, {x: 4, y: 1}, {x: 7, y: 9}, {x: 5, y: 4}, {x: 11, y: 11}, {x: 11, y: 2}, {x: 7, y: 1}];
 let p = []
-for(let i = 0; i < 100; i++) {
+for(let i = 0; i < 350; i++) {
     p.push({x: Math.floor(Math.random()*innerWidth), y: Math.floor(Math.random()*innerHeight)})
 }
 
@@ -19,56 +18,118 @@ class Node {
         this.right = null;
         this.color = "#fff";
     }
-}
 
-const kdtree = (points, depth) => {
-    // Select axis based on depth so that axis cycles through all valid values
-    let axis = depth % 2;
-    switch(axis) {
-        case 0:
-            points.sort((a,b) => a.x - b.x);
-            break;
-        case 1:
-            points.sort((a,b) => a.y - b.y);
-            break;
+    render() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 7.5, 0, 2 * Math.PI);
+        ctx.fill();
     }
 
-    let medianIndex = Math.floor(points.length / 2);
-    let median = points[medianIndex];
-    // Create node and construct subtree
-    let node = new Node(median.x, median.y);
-    try {
-        node.left = kdtree(points.slice(0, medianIndex), depth+1);
-        node.right = kdtree(points.slice(medianIndex+1, points.length), depth+1);
-    } catch {}
-    return node;
-}
-
-let node = kdtree(p, 0);
-
-
-function printTree(node) {
-    if (node !== null) {
-        printTree(node.left);
-        console.log(node.x, node.y);
-        printTree(node.right);
+    drawLineTo(target) {
+        ctx.beginPath();
+            ctx.fillStyle = "#fff";
+            ctx.strokeStyle = "#fff";
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(target.x, target.y);
+            ctx.stroke();
     }
 }
 
-function searchKdTree(node, point) {
-    if (node === null) {
-      return null;
+class KDTree {
+    constructor(points) {
+        this.root = this.generate(points, 0);
     }
-  
-    if (node.x === point.x && node.y === point.y) {
-      return node;
+
+    generate(points, depth) {
+        // Select axis based on depth so that axis cycles through all valid values
+        let axis = depth % 2;
+        switch(axis) {
+            case 0:
+                points.sort((a,b) => a.x - b.x);
+                break;
+            case 1:
+                points.sort((a,b) => a.y - b.y);
+                break;
+        }
+
+        let medianIndex = Math.floor(points.length / 2);
+        let median = points[medianIndex];
+        // Create node and construct subtree
+        let node = new Node(median.x, median.y);
+        try {
+            node.left = this.generate(points.slice(0, medianIndex), depth+1);
+            node.right = this.generate(points.slice(medianIndex+1, points.length), depth+1);
+        } catch {}
+        return node;
     }
-  
-    if (node.x > point.x || (node.x === point.x && node.y > point.y)) {
-      return searchKdTree(node.left, point);
-    } else {
-      return searchKdTree(node.right, point);
+
+    printTree(node) {
+        if (node !== null) {
+            this.printTree(node.left);
+            console.log(node.x, node.y);
+            this.printTree(node.right);
+        }
     }
+
+    search(node, point) {
+        if (node === null) {
+          return null;
+        }
+      
+        if (node.x === point.x && node.y === point.y) {
+          return node;
+        }
+      
+        if (node.x > point.x || (node.x === point.x && node.y > point.y)) {
+          return this.search(node.left, point);
+        } else {
+          return this.search(node.right, point);
+        }
+    }
+
+    
+    
+    
+
+    insert(node, point, depth = 0) {
+        if (node === null) {
+          return new Node(point.x, point.y);
+        }
+      
+        const splitDimension = depth % 2;
+      
+        if (node.x === point.x && node.y === point.y) {
+          return node;
+        }
+      
+        if (point[splitDimension] < node[splitDimension]) {
+          node.left = this.insert(node.left, point, depth + 1);
+        }
+      
+        else {
+          node.right = this.insert(node.right, point, depth + 1);
+        }
+      
+        return node;
+    }
+
+    resetColors(node) {
+        node.color = "#fff";
+        try {
+            this.resetColors(node.left);
+            this.resetColors(node.right);
+        } catch {}
+    }
+
+    render(node) {
+        node.render();
+        try {
+            this.render(node.left);
+            this.render(node.right);
+        }catch {}
+    } 
+
 }
 
 function nearestNeighborSearch(node, target) {
@@ -78,6 +139,11 @@ function nearestNeighborSearch(node, target) {
     function recursiveSearch(currentNode, depth) {
         if (!currentNode) {
             return;
+        }
+        function euclideanDistance(node, target) {
+            const dx = node.x - target.x;
+            const dy = node.y - target.y;
+            return Math.sqrt(dx * dx + dy * dy);
         }
 
         const dist = euclideanDistance(currentNode, target);
@@ -103,84 +169,30 @@ function nearestNeighborSearch(node, target) {
     return bestNode;
 }
 
-function euclideanDistance(node, target) {
-    const dx = node.x - target.x;
-    const dy = node.y - target.y;
-    return Math.sqrt(dx * dx + dy * dy);
-}
 
-function insert(node, point, depth = 0) {
-    if (node === null) {
-      return new Node(point.x, point.y);
-    }
-  
-    const splitDimension = depth % 2;
-  
-    if (node.x === point.x && node.y === point.y) {
-      return node;
-    }
-  
-    if (point[splitDimension] < node[splitDimension]) {
-      node.left = insert(node.left, point, depth + 1);
-    }
-  
-    else {
-      node.right = insert(node.right, point, depth + 1);
-    }
-  
-    return node;
-  }
 
-let n = new Node();
-n.x = innerWidth / 2;
-n.y = innerHeight / 2;
-n.color = "green";
+
+let tree = new KDTree(p);
+let m = new Node(1,1);
+m.color = "green";
 window.addEventListener('mousemove', (e) => {
-    n.x = e.x;
-    n.y = e.y;
+    m.x = e.x;
+    m.y = e.y;
 })
 
-
-function switchBack(node) {
-    node.color = "#fff";
-    try {
-        switchBack(node.left);
-        switchBack(node.right);
-    } catch {}
+function render(target) {
+    ctx.clearRect(0,0, innerWidth, innerHeight)
+    tree.render(tree.root);
+    m.render();
+    m.drawLineTo(target);
 }
-
-
-
-function draw(node) {
-    ctx.fillStyle = node.color;
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
-    ctx.fill();
-    try {
-        draw(node.left)
-        draw(node.right)
-    } catch {}
-}
-
-function drawStaticNode(node) {
-    ctx.fillStyle = node.color;
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
-    ctx.fill();
-}
-
-
 
 function step() {
-    ctx.clearRect(0,0, innerWidth, innerHeight)
-    switchBack(node)
-    let res = nearestNeighborSearch(node, n);
-    res.color = "red";
-    draw(node)
-    drawStaticNode(n)
+    tree.resetColors(tree.root)
+    let nearest = nearestNeighborSearch(tree.root, m);
+    nearest.color = "red";
 
-
-    console.log("ran")
+    render(nearest);
 }
 
 function start() {
