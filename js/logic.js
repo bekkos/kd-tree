@@ -6,7 +6,7 @@ canvas.width = innerWidth;
 
 
 let p = []
-for(let i = 0; i < 350; i++) {
+for(let i = 0; i < 40; i++) {
     p.push({x: Math.floor(Math.random()*innerWidth), y: Math.floor(Math.random()*innerHeight)})
 }
 
@@ -17,6 +17,8 @@ class Node {
         this.left = null;
         this.right = null;
         this.color = "#fff";
+        this.xvel = 0;
+        this.yvel = 0;
     }
 
     render() {
@@ -26,13 +28,13 @@ class Node {
         ctx.fill();
     }
 
-    drawLineTo(target) {
+    drawLineTo(target, color) {
         ctx.beginPath();
-            ctx.fillStyle = "#fff";
-            ctx.strokeStyle = "#fff";
-            ctx.moveTo(this.x, this.y);
-            ctx.lineTo(target.x, target.y);
-            ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = color;
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
     }
 }
 
@@ -88,10 +90,6 @@ class KDTree {
         }
     }
 
-    
-    
-    
-
     insert(node, point, depth = 0) {
         if (node === null) {
           return new Node(point.x, point.y);
@@ -132,6 +130,8 @@ class KDTree {
 
 }
 
+
+
 function nearestNeighborSearch(node, target) {
     let bestNode = null;
     let bestDist = Number.MAX_VALUE;
@@ -170,29 +170,93 @@ function nearestNeighborSearch(node, target) {
 }
 
 
+let connected = true;
+let gravity = 0.01;
 
+let ropeSpringConstant = 0.05;
+let ropeDampingConstant = 0.1;
+
+
+function calcualteSwing(player, anchor) {
+    if(connected) {
+
+        let length = Math.sqrt((player.x - anchor.x) ** 2 + (player.y - anchor.y) ** 2);
+        let angle = Math.atan2(anchor.y - player.y, anchor.x - player.x);
+    
+        const dx = anchor.x - player.x;
+        const dy = anchor.y - player.y;
+        const distance = Math.sqrt(dx ** 2 + dy ** 2);
+    
+        // Calculate the force of the spring
+        const springForce = ropeSpringConstant * (distance - length);
+    
+        // Calculate the damping force
+        const dampingForce = ropeDampingConstant * (dx * player.xvel + dy * player.yvel) / distance;
+    
+        // Calculate the total force on the player
+        const totalForce = {
+        x: (springForce + dampingForce) * Math.cos(angle),
+        y: (springForce + dampingForce) * Math.sin(angle)
+        };
+    
+        // Update the player's velocity
+        player.xvel -= totalForce.x*1.1;
+        player.yvel -= (totalForce.y-gravity)*1.1;
+    } else {
+        applyGravity();
+    }
+
+}
 
 let tree = new KDTree(p);
-let m = new Node(1,1);
+let m = new Node(innerWidth/2,innerHeight/2);
 m.color = "green";
-window.addEventListener('mousemove', (e) => {
-    m.x = e.x;
-    m.y = e.y;
+// window.addEventListener('mousemove', (e) => {
+//     m.x = e.x;
+//     m.y = e.y;
+// })
+
+let nearest = nearestNeighborSearch(tree.root, m);
+
+window.addEventListener('keydown', e => {
+    if(e.keyCode == 32) {
+        connected = !connected;
+        nearest = nearestNeighborSearch(tree.root, m);
+        nearest.color = "red";
+    }
+    if(e.keyCode == 65 && connected) {
+        m.xvel -= 3;
+    }
+    if(e.keyCode == 68 && connected) {
+        m.xvel += 3;
+    }
 })
+
+function movePlayer() {
+    
+    m.x += m.xvel;
+    m.y += m.yvel;
+}
+
+function applyGravity() {
+    m.yvel += gravity;
+}
+
 
 function render(target) {
     ctx.clearRect(0,0, innerWidth, innerHeight)
     tree.render(tree.root);
     m.render();
-    m.drawLineTo(target);
+    if(connected) m.drawLineTo(nearest, "green")
+    m.drawLineTo(target, "white");
 }
 
 function step() {
     tree.resetColors(tree.root)
-    let nearest = nearestNeighborSearch(tree.root, m);
-    nearest.color = "red";
-
-    render(nearest);
+    calcualteSwing(m, nearest)
+    movePlayer();
+    let target = nearestNeighborSearch(tree.root, m);
+    render(target);
 }
 
 function start() {
